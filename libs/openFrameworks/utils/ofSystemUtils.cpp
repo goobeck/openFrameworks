@@ -63,6 +63,19 @@ std::wstring convertNarrowToWide( const std::string& as ){
     return ret;
 }
 
+std::string convertWideToUTF8(const std::wstring& as)
+{
+	if (as.empty()) return std::string();
+
+	size_t reqLength = ::WideCharToMultiByte(CP_UTF8, 0, as.c_str(), (int)as.length(), 0, 0, NULL, NULL);
+
+	std::string ret(reqLength, L'\0');
+
+	::WideCharToMultiByte(CP_UTF8, 0, as.c_str(), (int)as.length(), &ret[0], (int)ret.length(), NULL, NULL);
+
+	return ret;
+}
+
 #endif
 
 #if defined( TARGET_OSX )
