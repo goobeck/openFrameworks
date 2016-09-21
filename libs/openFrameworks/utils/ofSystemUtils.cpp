@@ -416,7 +416,7 @@ ofFileDialogResult ofSystemLoadDialog(string windowTitle, bool bFolderSelection,
 		ofn.lpstrTitle = windowTitleW.c_str();
 
 		if(GetOpenFileName(&ofn)) {
-			results.filePath = convertWideToNarrow(szFileName);
+			results.filePath = convertWideToUTF8(szFileName);
 		}
 		else {
 			//this should throw an error on failure unless its just the user canceling out
@@ -453,7 +453,7 @@ ofFileDialogResult ofSystemLoadDialog(string windowTitle, bool bFolderSelection,
 		if(pidl = SHBrowseForFolderW(&bi)){
 			// Copy the path directory to the buffer
 			if(SHGetPathFromIDListW(pidl,wideCharacterBuffer)){
-				results.filePath = convertWideToNarrow(wideCharacterBuffer);
+				results.filePath = convertWideToUTF8(wideCharacterBuffer);
 			}
 			lpMalloc->Free(pidl);
 		}
