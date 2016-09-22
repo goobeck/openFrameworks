@@ -27,7 +27,8 @@ void ofSystemAlertDialog(string errorMessage);
 /// \param bFolderSelection set to true to allow folder selection
 /// \param defaultPath optional default directory path to start the dialog in, ie. ofFilePath::getUserHomeDir()
 /// \return dialog result with selection (if any)
-ofFileDialogResult ofSystemLoadDialog(string windowTitle="", bool bFolderSelection = false, string defaultPath="");
+ofFileDialogResult ofSystemLoadDialog(string windowTitle = "", bool bFolderSelection = false, string defaultPath = "");
+ofFileDialogResult ofSystemLoadDialogExt(string windowTitle = "", bool bFolderSelection = false, string defaultPath = "", unordered_map<wchar_t*, wchar_t*> &filters = unordered_map<wchar_t*, wchar_t*>());
 
 /// \brief show a file save dialog box
 /// \param defaultName suggested filename to start dialog, ie "screenshot.png"

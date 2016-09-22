@@ -490,6 +490,188 @@ ofFileDialogResult ofSystemLoadDialog(string windowTitle, bool bFolderSelection,
 }
 
 
+// OS specific results here.  "" = cancel or something bad like can't load, can't save, etc...
+ofFileDialogResult ofSystemLoadDialogExt(string windowTitle, bool bFolderSelection, string defaultPath, unordered_map<wchar_t*, wchar_t*> &filters) {
+
+	ofFileDialogResult results;
+
+	//----------------------------------------------------------------------------------------
+	//------------------------------------------------------------------------------       OSX
+	//----------------------------------------------------------------------------------------
+#ifdef TARGET_OSX
+	@autoreleasepool {
+		NSOpenGLContext *context = [NSOpenGLContext currentContext];
+
+		NSOpenPanel * loadDialog = [NSOpenPanel openPanel];
+		[loadDialog setAllowsMultipleSelection:NO];
+		[loadDialog setCanChooseDirectories:bFolderSelection];
+		[loadDialog setResolvesAliases:YES];
+
+		if(!windowTitle.empty()) {
+			[loadDialog setTitle:[NSString stringWithUTF8String:windowTitle.c_str()]];
+		}
+
+		if(!defaultPath.empty()) {
+			NSString * s = [NSString stringWithUTF8String:defaultPath.c_str()];
+			s = [[s stringByExpandingTildeInPath] stringByResolvingSymlinksInPath];
+			NSURL * defaultPathUrl = [NSURL fileURLWithPath:s];
+			[loadDialog setDirectoryURL:defaultPathUrl];
+		}
+
+		NSInteger buttonClicked = [loadDialog runModal];
+		[context makeCurrentContext];
+		restoreAppWindowFocus();
+
+		if(buttonClicked == NSFileHandlingPanelOKButton) {
+			NSURL * selectedFileURL = [[loadDialog URLs] objectAtIndex:0];
+			results.filePath = string([[selectedFileURL path] UTF8String]);
+		}
+	}
+#endif
+	//----------------------------------------------------------------------------------------
+	//----------------------------------------------------------------------------------------
+	//----------------------------------------------------------------------------------------
+
+	//----------------------------------------------------------------------------------------
+	//------------------------------------------------------------------------------   windoze
+	//----------------------------------------------------------------------------------------
+#ifdef TARGET_WIN32
+	wstring windowTitleW;
+	windowTitleW.assign(windowTitle.begin(), windowTitle.end());
+
+	if (bFolderSelection == false){
+
+        OPENFILENAME ofn;
+
+		ZeroMemory(&ofn, sizeof(ofn));
+		ofn.lStructSize = sizeof(ofn);
+		HWND hwnd = WindowFromDC(wglGetCurrentDC());
+		ofn.hwndOwner = hwnd;
+
+		//the file name and path
+		wchar_t szFileName[MAX_PATH];
+		memset(szFileName, 0, sizeof(szFileName));
+
+		//the dir, if specified
+		wchar_t szDir[MAX_PATH];
+
+		//the title if specified
+		wchar_t szTitle[MAX_PATH];
+		if(defaultPath!=""){
+			wcscpy(szDir,convertNarrowToWide(ofToDataPath(defaultPath)).c_str());
+			ofn.lpstrInitialDir = szDir;
+		}
+
+		if (windowTitle != "") {
+			wcscpy(szTitle, convertNarrowToWide(windowTitle).c_str());
+			ofn.lpstrTitle = szTitle;
+		} else {
+			ofn.lpstrTitle = nullptr;
+		}
+
+		if (filters.size() > 0) {
+
+			wchar_t result[MAX_PATH];
+			memset(result, 0, sizeof(result));
+
+			int cresult = 0;
+			for (auto const &i : filters)
+			{
+				int cfirst = wcslen(i.first);
+				int csecond = wcslen(i.second);
+
+				wcscpy(&result[cresult], i.first);
+				wcscpy(&result[cresult + cfirst + 1], i.second);
+
+				cresult += (cfirst + 1) + (csecond + 1);
+			}
+
+			ofn.lpstrFilter = result;
+		}
+		else {
+			ofn.lpstrFilter = L"All\0";
+		}
+
+		ofn.lpstrFile = szFileName;
+		ofn.nMaxFile = MAX_PATH;
+		ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+		ofn.lpstrDefExt = 0;
+		ofn.lpstrTitle = windowTitleW.c_str();
+
+		if(GetOpenFileName(&ofn)) {
+			results.filePath = convertWideToUTF8(szFileName);
+		}
+		else {
+			//this should throw an error on failure unless its just the user canceling out
+			DWORD err = CommDlgExtendedError();
+		}
+
+	} else {
+
+		BROWSEINFOW      bi;
+		wchar_t         wideCharacterBuffer[MAX_PATH];
+		wchar_t			wideWindowTitle[MAX_PATH];
+		LPITEMIDLIST    pidl;
+		LPMALLOC		lpMalloc;
+
+		if (windowTitle != "") {
+			wcscpy(wideWindowTitle, convertNarrowToWide(windowTitle).c_str());
+		} else {
+			wcscpy(wideWindowTitle, L"Select Directory");
+		}
+
+		// Get a pointer to the shell memory allocator
+		if(SHGetMalloc(&lpMalloc) != S_OK){
+			//TODO: deal with some sort of error here?
+		}
+		bi.hwndOwner        =   nullptr;
+		bi.pidlRoot         =   nullptr;
+		bi.pszDisplayName   =   wideCharacterBuffer;
+		bi.lpszTitle        =   wideWindowTitle;
+		bi.ulFlags          =   BIF_RETURNFSANCESTORS | BIF_RETURNONLYFSDIRS | BIF_USENEWUI;
+		bi.lpfn             =   &loadDialogBrowseCallback;
+		bi.lParam           =   (LPARAM) &defaultPath;
+		bi.lpszTitle        =   windowTitleW.c_str();
+
+		if(pidl = SHBrowseForFolderW(&bi)){
+			// Copy the path directory to the buffer
+			if(SHGetPathFromIDListW(pidl,wideCharacterBuffer)){
+				results.filePath = convertWideToUTF8(wideCharacterBuffer);
+			}
+			lpMalloc->Free(pidl);
+		}
+		lpMalloc->Release();
+	}
+
+	//----------------------------------------------------------------------------------------
+	//------------------------------------------------------------------------------   windoze
+	//----------------------------------------------------------------------------------------
+#endif
+
+
+
+
+	//----------------------------------------------------------------------------------------
+	//------------------------------------------------------------------------------   linux
+	//----------------------------------------------------------------------------------------
+#if defined( TARGET_LINUX ) && defined (OF_USING_GTK)
+		if(bFolderSelection) results.filePath = gtkFileDialog(GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,windowTitle,defaultPath);
+		else results.filePath = gtkFileDialog(GTK_FILE_CHOOSER_ACTION_OPEN,windowTitle,defaultPath);
+#endif
+	//----------------------------------------------------------------------------------------
+	//----------------------------------------------------------------------------------------
+	//----------------------------------------------------------------------------------------
+
+
+
+	if( results.filePath.length() > 0 ){
+		results.bSuccess = true;
+		results.fileName = ofFilePath::getFileName(results.filePath);
+	}
+
+	return results;
+}
+
 
 ofFileDialogResult ofSystemSaveDialog(string defaultName, string messageName){
 
